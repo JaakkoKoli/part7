@@ -1,21 +1,28 @@
 import React from 'react'
-import Blog from './components/Blog'
+import SingleBlog from './components/SingleBlog'
+import Blogs from './components/blogs'
 import BlogForm from './components/BlogForm'
 import Notification from './components/Notification'
 import Togglable from './components/Togglable'
 import blogService from './services/blogs'
 import loginService from './services/login'
-import {notify} from './reducers/notificationReducer'
-import {connect} from 'react-redux'
+import { initBlogs, deleteBlog, newBlog, likeBlog } from './reducers/blogReducer'
+import { BrowserRouter as Router, Route, NavLink } from 'react-router-dom'
+import { notify } from './reducers/notificationReducer'
+import { initUsers } from './reducers/userReducer'
+import { connect } from 'react-redux'
+import Users from './components/users'
+import User from './components/user'
+import { Container, Button, Form, Icon } from 'semantic-ui-react'
+
 
 class App extends React.Component {
   constructor(props) {
     super(props)
     this.state = {
-      blogs: [],
       user: null,
       username: '',
-      password: '', 
+      password: '',
       title: '',
       author: '',
       url: ''
@@ -23,43 +30,36 @@ class App extends React.Component {
   }
 
   componentWillMount() {
-    blogService.getAll().then(blogs =>
-      this.setState({ blogs })
-    )
+    this.props.initUsers()
+    this.props.initBlogs()
     const loggedUserJSON = window.localStorage.getItem('loggedBlogAppUser')
     if (loggedUserJSON) {
       const user = JSON.parse(loggedUserJSON)
       this.setState({ user })
       blogService.setToken(user.token)
     }
-  } 
+  }
 
   notify = (message, type = 'info') => {
     this.props.notify(message, 3, type)
   }
 
   like = (id) => async () => {
-    const liked = this.state.blogs.find(b=>b._id===id)
+    const liked = this.props.blogs.find(b => b._id === id)
     const updated = { ...liked, likes: liked.likes + 1 }
-    await blogService.update(id, updated)
+    this.props.likeBlog(id, updated)
     this.notify(`you liked '${updated.title}' by ${updated.author}`)
-    this.setState({
-      blogs: this.state.blogs.map(b => b._id === id ? updated : b)
-    })
   }
 
   remove = (id) => async () => {
-    const deleted = this.state.blogs.find(b => b._id === id)
+    const deleted = this.props.blogs.find(b => b._id === id)
     const ok = window.confirm(`remove blog '${deleted.title}' by ${deleted.author}?`)
-    if ( ok===false) {
+    if (ok === false) {
       return
     }
 
-    await blogService.remove(id)
     this.notify(`blog '${deleted.title}' by ${deleted.author} removed`)
-    this.setState({
-      blogs: this.state.blogs.filter(b=>b._id!==id)
-    })
+    this.props.deleteBlog(id)
   }
 
   addBlog = async (event) => {
@@ -68,16 +68,11 @@ class App extends React.Component {
       title: this.state.title,
       author: this.state.author,
       url: this.state.url,
+      comments: []
     }
-    
-    const result = await blogService.create(blog) 
+
+    this.props.newBlog(blog)
     this.notify(`blog '${blog.title}' by ${blog.author} added`)
-    this.setState({ 
-      title: '', 
-      url: '', 
-      author: '',
-      blogs: this.state.blogs.concat(result)
-    })
   }
 
   logout = () => {
@@ -113,12 +108,12 @@ class App extends React.Component {
   render() {
     if (this.state.user === null) {
       return (
-        <div>
+        <Container>
           <Notification />
           <h2>Kirjaudu sovellukseen</h2>
-          <form onSubmit={this.login}>
+          <Form onSubmit={this.login}>
             <div>
-              käyttäjätunnus
+              <label>käyttäjätunnus</label>
               <input
                 type="text"
                 name="username"
@@ -127,7 +122,7 @@ class App extends React.Component {
               />
             </div>
             <div>
-              salasana
+              <label>salasana</label>
               <input
                 type="password"
                 name="password"
@@ -135,45 +130,57 @@ class App extends React.Component {
                 onChange={this.handleLoginChange}
               />
             </div>
-            <button type="submit">kirjaudu</button>
-          </form>
-        </div>
+            <br />
+            <Button type="submit"><Icon name="key" />kirjaudu</Button>
+          </Form>
+        </Container>
       )
     }
 
-    const byLikes = (b1, b2) => b2.likes - b1.likes
-
-    const blogsInOrder = this.state.blogs.sort(byLikes)
+    const linkStyle = {
+      background: 'green',
+      border: 'solid 5px black',
+      borderRadius: '20px 50px',
+      padding: '10px',
+      color: 'red',
+      fontSize: '24px',
+      textShadow: '2px 2px black'
+    }
 
     return (
-      <div>
+      <Container>
         <Notification />
+        <Router>
+          <div>
+            <div style={linkStyle}>
+            &nbsp;&nbsp;&nbsp;<NavLink to="/users" activeStyle={{ fontWeight: 'bold', background: 'darkgreen' }}>users</NavLink> &nbsp;&nbsp;&nbsp;
+              <NavLink to="/blogs" activeStyle={{ fontWeight: 'bold', background: 'darkgreen' }}>blogs</NavLink> &nbsp;&nbsp;&nbsp;
+              {this.state.user.name} logged in &nbsp;&nbsp;&nbsp; <Button inverted color='black' onClick={this.logout}><Icon name="sign out" color="white" />logout</Button>
+            </div>
 
-        {this.state.user.name} logged in <button onClick={this.logout}>logout</button>
-
-        <Togglable buttonLabel='uusi blogi'>
-          <BlogForm 
-            handleChange={this.handleLoginChange}
-            title={this.state.title}
-            author={this.state.author}
-            url={this.state.url}
-            handleSubmit={this.addBlog}
-          />
-        </Togglable>
-
-        <h2>blogs</h2>
-        {blogsInOrder.map(blog => 
-          <Blog 
-            key={blog._id} 
-            blog={blog} 
-            like={this.like(blog._id)}
-            remove={this.remove(blog._id)}
-            deletable={blog.user === undefined || blog.user.username === this.state.user.username}
-          />
-        )}
-      </div>
-    );
+            <Route exact path="/" render={() => <div><Blogs like={this.like} remove={this.remove} username={this.state.username} /><Togglable buttonLabel='uusi blogi'><BlogForm handleChange={this.handleLoginChange} title={this.state.title} author={this.state.author} url={this.state.url} handleSubmit={this.addBlog} /></Togglable></div>} />
+            <Route exact path="/blogs" render={({ history }) => <div><Blogs history={history} like={this.like} remove={this.remove} username={this.state.username} /><Togglable buttonLabel='uusi blogi'><BlogForm handleChange={this.handleLoginChange} title={this.state.title} author={this.state.author} url={this.state.url} handleSubmit={this.addBlog} /></Togglable></div>} />
+            <Route exact path="/users" render={({ history }) => <Users history={history} />} />
+            <Route path="/users/:id" render={({ match }) =>
+              <User id={match.params.id} />}
+            />
+            <Route path="/blogs/:id" render={({ match }) =>
+              <SingleBlog blog={this.props.blogs.find(b => b._id === match.params.id)}
+                like={this.like(match.params.id)} />}
+            />
+          </div>
+        </Router>
+      </Container>
+    )
   }
 }
 
-export default connect(null, {notify})(App);
+const mapStateToProps = (state) => {
+  return {
+    users: state.users,
+    blogs: state.blogs
+  }
+}
+
+
+export default connect(mapStateToProps, { notify, initUsers, initBlogs, deleteBlog, newBlog, likeBlog })(App)

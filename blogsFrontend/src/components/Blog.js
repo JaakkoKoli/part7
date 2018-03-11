@@ -1,10 +1,12 @@
 import React from 'react'
+import { connect } from 'react-redux'
+import { Button, Icon } from 'semantic-ui-react'
 
 class Blog extends React.Component {
-  constructor() {
-    super()
+  constructor(props) {
+    super(props)
     this.state = {
-      visible: false
+      visible: props.visible
     }
   }
   render() {
@@ -19,35 +21,47 @@ class Blog extends React.Component {
     }
 
     const contentStyle = {
-      display: this.state.visible? '' : 'none',
+      display: this.state.visible ? '' : 'none',
       margin: 5,
+    }
+
+    if (typeof blog.user === typeof '') {
+      blog.user = this.props.users.find(u => u._id === blog.user)
     }
 
     const adder = blog.user ? blog.user.name : 'anonymous'
 
     return (
       <div style={blogStyle}>
-        <div 
-          onClick={() => this.setState({ visible: !this.state.visible })} 
+        <div
+          onClick={() => this.setState({ visible: !this.state.visible })}
           className='name'
         >
-          {blog.title} {blog.author}
+          <a onClick={() => this.props.history.push('/blogs/' + blog._id)}>{blog.title} {blog.author}</a>
         </div>
         <div style={contentStyle} className='content'>
           <div>
             <a href={blog.url}>{blog.url}</a>
           </div>
           <div>
-            {blog.likes} likes <button onClick={like}>like</button>
+            {blog.likes} likes <Button color="black" onClick={like}><Icon name="thumbs up" color="white" /> like</Button>
           </div>
           <div>
             added by {adder}
           </div>
-          {deletable && <div><button onClick={remove}>delete</button></div>}
+          {deletable && <div><Button onClick={remove}>delete</Button></div>}
         </div>
-      </div>  
+      </div>
     )
   }
 }
 
-export default Blog
+const mapStateToProps = (state) => {
+  return {
+    users: state.users,
+    blogs: state.blogs
+  }
+}
+
+
+export default connect(mapStateToProps)(Blog)
